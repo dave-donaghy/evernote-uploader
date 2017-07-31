@@ -15,6 +15,9 @@
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.Iterator;
 import java.util.List;
@@ -117,10 +120,12 @@ public class BulkUploader {
      */
     private void createNote(String fileName) throws Exception {
         Note note = new Note();
-        String noteTitle = FilenameUtils.getBaseName(fileName);
+        String noteTitle = filenameToTitle(fileName);
         note.setTitle(noteTitle);
 
-        String mimeType = "image/png";
+        String mimeType = filenameToMimeType(fileName);
+
+        System.out.println("Detected MIME type " + mimeType + " in file " + fileName);
 
         Resource resource = new Resource();
         resource.setData(readFileAsData(fileName));
@@ -213,5 +218,36 @@ public class BulkUploader {
             sb.append(Integer.toHexString(intVal));
         }
         return sb.toString();
+    }
+
+    /**
+     *
+     * Helper method to turn a filename into a slightly more
+     * human-readable string.
+     */
+
+    private String filenameToTitle(String filename) {
+        return FilenameUtils.getBaseName(filename);
+    }
+
+    /**
+     *
+     * Helper method to turn a filename into a MIME type.
+     * Not complete, but sufficient for local purposes.
+     */
+
+    private String filenameToMimeType(String filename) {
+        if (filename.matches("^.*jpg")) {
+            return "image/jpg";
+        }
+        else if (filename.matches("^.*.png")) {
+            return "image/png";
+        }
+        else if (filename.matches("^.*.pdf")) {
+            return "application/pdf";
+        }
+        else {
+            return null;
+        }
     }
 }
