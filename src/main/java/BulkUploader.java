@@ -12,16 +12,6 @@
   http://dev.evernote.com/documentation/cloud/
  */
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.util.Iterator;
-import java.util.List;
-
 import com.evernote.auth.EvernoteAuth;
 import com.evernote.auth.EvernoteService;
 import com.evernote.clients.ClientFactory;
@@ -30,17 +20,16 @@ import com.evernote.clients.UserStoreClient;
 import com.evernote.edam.error.EDAMErrorCode;
 import com.evernote.edam.error.EDAMSystemException;
 import com.evernote.edam.error.EDAMUserException;
-import com.evernote.edam.notestore.NoteFilter;
-import com.evernote.edam.notestore.NoteList;
-import com.evernote.edam.type.Data;
-import com.evernote.edam.type.Note;
-import com.evernote.edam.type.NoteSortOrder;
-import com.evernote.edam.type.Notebook;
-import com.evernote.edam.type.Resource;
-import com.evernote.edam.type.ResourceAttributes;
-import com.evernote.edam.type.Tag;
+import com.evernote.edam.type.*;
 import com.evernote.thrift.transport.TTransportException;
 import org.apache.commons.io.FilenameUtils;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.List;
 
 public class BulkUploader {
 
@@ -118,38 +107,70 @@ public class BulkUploader {
     /**
      * Create a new note containing a little text and the Evernote icon.
      */
-    private void createNote(String fileName) throws Exception {
+    private void createNote(String filename) throws Exception {
         Note note = new Note();
-        String noteTitle = filenameToTitle(fileName);
+        String noteTitle = filenameToTitle(filename);
         note.setTitle(noteTitle);
 
-        String mimeType = filenameToMimeType(fileName);
-
-        System.out.println("Detected MIME type " + mimeType + " in file " + fileName);
-
-        Resource resource = new Resource();
-        resource.setData(readFileAsData(fileName));
-        resource.setMime(mimeType);
-        ResourceAttributes attributes = new ResourceAttributes();
-        attributes.setFileName(fileName);
-        resource.setAttributes(attributes);
-
-        note.addToResources(resource);
-
-        String hashHex = bytesToHex(resource.getData().getBodyHash());
-
-        String content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                + "<!DOCTYPE en-note SYSTEM \"http://xml.evernote.com/pub/enml2.dtd\">"
-                + "<en-note>"
-                + "<en-media type=\"image/png\" hash=\"" + hashHex + "\"/>"
-                + "</en-note>";
-        note.setContent(content);
+        addContent(note, filename);
 
         Note createdNote = noteStore.createNote(note);
         newNoteGuid = createdNote.getGuid();
 
         System.out.println("New note " + note.getTitle() + " has GUID " + newNoteGuid);
         System.out.println();
+    }
+
+    private void addContent(Note note, String filename) throws Exception {
+        String content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<!DOCTYPE en-note SYSTEM \"http://xml.evernote.com/pub/enml2.dtd\">"
+                + "<en-note>";
+
+        for (String attachment : getFiles(filename)) {
+            String mimeType = filenameToMimeType(attachment);
+
+            Resource resource = new Resource();
+            resource.setData(readFileAsData(attachment));
+            resource.setMime(mimeType);
+            ResourceAttributes attributes = new ResourceAttributes();
+            attributes.setFileName(attachment);
+            resource.setAttributes(attributes);
+
+            note.addToResources(resource);
+
+            String hashHex = bytesToHex(resource.getData().getBodyHash());
+
+            content += "<en-media type=\"" + mimeType + "\" hash=\"" + hashHex + "\"/>";
+            System.out.println("Adding attachment " + attachment);
+        }
+
+        content += "</en-note>";
+        note.setContent(content);
+    }
+
+    /**
+     * Get the files to add to a note: if we start out with a file,
+     * then return just that file; if we start out with a directory, then
+     * return all of the regular files directly contained by the directory.
+     */
+    static List<String> getFiles(String source) {
+        List<String> files = new ArrayList<String>();
+
+        if (new File(source).isDirectory()) {
+            File directory = new File(source);
+            File[] listOfFiles = directory.listFiles();
+
+            for (File file : listOfFiles) {
+                if (file.isFile() && ! file.getName().matches("\\..*")) {
+                    files.add(file.getAbsolutePath());
+                }
+            }
+        }
+        else {
+            files.add(source);
+        }
+
+    return files;
     }
 
     /**
