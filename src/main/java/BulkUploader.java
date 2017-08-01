@@ -29,6 +29,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class BulkUploader {
@@ -48,7 +49,6 @@ public class BulkUploader {
 
         if (token == null) {
             System.err.println("Please fill in your developer token in environment variable AUTH_TOKEN");
-            System.err.println("To get a developer token, go to https://sandbox.evernote.com/api/DeveloperToken.action");
             return;
         }
 
@@ -122,10 +122,10 @@ public class BulkUploader {
     }
 
     private void addContent(Note note, String filename) throws Exception {
-        String content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                + "<!DOCTYPE en-note SYSTEM \"http://xml.evernote.com/pub/enml2.dtd\">"
-                + "<en-note>";
 
+        StringBuilder contentBuilder = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<!DOCTYPE en-note SYSTEM \"http://xml.evernote.com/pub/enml2.dtd\">"
+                + "<en-note>");
         for (String attachment : getFiles(filename)) {
             String mimeType = filenameToMimeType(attachment);
 
@@ -140,9 +140,10 @@ public class BulkUploader {
 
             String hashHex = bytesToHex(resource.getData().getBodyHash());
 
-            content += "<en-media type=\"" + mimeType + "\" hash=\"" + hashHex + "\"/>";
+            contentBuilder.append("<en-media type=\"").append(mimeType).append("\" hash=\"").append(hashHex).append("\"/>");
             System.out.println("Adding attachment " + attachment);
         }
+        String content = contentBuilder.toString();
 
         content += "</en-note>";
         note.setContent(content);
@@ -153,16 +154,20 @@ public class BulkUploader {
      * then return just that file; if we start out with a directory, then
      * return all of the regular files directly contained by the directory.
      */
-    static List<String> getFiles(String source) {
-        List<String> files = new ArrayList<String>();
+    private static List<String> getFiles(String source) {
+        List<String> files = new ArrayList<>();
 
         if (new File(source).isDirectory()) {
             File directory = new File(source);
             File[] listOfFiles = directory.listFiles();
 
-            for (File file : listOfFiles) {
-                if (file.isFile() && ! file.getName().matches("\\..*")) {
-                    files.add(file.getAbsolutePath());
+            if (listOfFiles != null) {
+                Arrays.sort(listOfFiles);
+
+                for (File file : listOfFiles) {
+                    if (file.isFile() && ! file.getName().matches("\\..*")) {
+                        files.add(file.getAbsolutePath());
+                    }
                 }
             }
         }
@@ -258,7 +263,7 @@ public class BulkUploader {
      */
 
     private String filenameToMimeType(String filename) {
-        if (filename.matches("^.*jpg")) {
+        if (filename.matches("^.*jpg") || filename.matches("^.*.jpeg")) {
             return "image/jpg";
         }
         else if (filename.matches("^.*.png")) {
